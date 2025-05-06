@@ -49,6 +49,7 @@ echo ""
 # Define the scripts to run
 scripts=(
 	"checkpatch.sh"
+	"check-uapi-headers.sh"
 )
 
 exit_status=0
