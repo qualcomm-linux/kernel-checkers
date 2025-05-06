@@ -30,6 +30,7 @@ fi
 # Define the scripts to run
 scripts=(
     "checkpatch.sh"
+    "check-uapi-headers.sh"
 )
 
 # Initialize return status and log summary
