@@ -50,6 +50,7 @@ echo ""
 scripts=(
 	"checkpatch.sh"
 	"check-uapi-headers.sh"
+	"sparse-check.sh"
 )
 
 exit_status=0
