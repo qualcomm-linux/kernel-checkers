@@ -31,6 +31,7 @@ fi
 scripts=(
     "checkpatch.sh"
     "check-uapi-headers.sh"
+    "sparse-check.sh"
 )
 
 # Initialize return status and log summary
