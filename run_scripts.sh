@@ -33,6 +33,7 @@ scripts=(
     "check-uapi-headers.sh"
     "sparse-check.sh"
     "dt-binding-check.sh"
+    "dtb-check.sh"
 )
 
 # Initialize return status and log summary
