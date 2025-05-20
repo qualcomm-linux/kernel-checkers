@@ -107,7 +107,7 @@ log_file="uapi_errors.log"
 
 # Docker wrapper
 kmake_image_run() {
-    docker run -it --rm \
+    docker run -i --rm \
         --user "$(id -u):$(id -g)" \
         --workdir="$PWD" \
         -v "$(dirname "$PWD")":"$(dirname "$PWD")" \

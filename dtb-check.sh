@@ -35,7 +35,7 @@ echo "Changed directory to $kernel_src"
 
 # Docker wrapper for make
 kmake_image_make() {
-    docker run -it --rm \
+    docker run -i --rm \
         --user "$(id -u):$(id -g)" \
         --workdir="$PWD" \
         -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
