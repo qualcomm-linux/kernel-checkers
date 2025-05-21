@@ -41,20 +41,6 @@ Each script accepts the following parameters:
 --head		Git SHA of the head commit (typically the tip of your patch series)
 ```
 
-
-## Usage
-
-### Run All Checks
-```
-./run_scripts.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
-```
-
-### Run Individual Check
-```
-./checkpatch.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
-```
-Replace checkpatch.sh with any other script name as needed.
-
 ## Requirements
 This project depends on the [*kmake-image*](https://github.com/qualcomm-linux/kmake-image/tree/main) project,
 which provides a Docker image preconfigured with all the necessary tools required to run these scripts,
@@ -68,6 +54,19 @@ git clone https://github.com/qualcomm-linux/kmake-image.git
 cd kmake-image
 docker build -t kmake-image .
 ```
+
+## Usage
+
+### Run All Checks
+```
+./run_scripts.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
+```
+
+### Run Individual Check
+```
+./checkpatch.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
+```
+Replace checkpatch.sh with any other script name as needed.
 
 ## License
 kernel-checkers is licensed under the [*BSD-3-clause License*](https://spdx.org/licenses/BSD-3-Clause.html). See [*LICENSE*](https://github.com/qualcomm-linux/kernel-checkers/blob/main/LICENSE) for the full license text.
