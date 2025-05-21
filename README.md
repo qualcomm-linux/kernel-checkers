@@ -1,6 +1,4 @@
 # kernel-checkers
-Docker image for building the Linux kernel
-
 This repository provides a suite of shell scripts designed to validate
 Linux kernel patches for correctness. These scripts can be run independently
 or collectively using the run_scripts.sh wrapper.
