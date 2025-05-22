@@ -1,0 +1,54 @@
+name: Kernel Checkers
+on:
+  workflow_call:
+    inputs:
+      check_name:
+        required: true
+        type: string
+      kernel_src:
+        required: true
+        type: string
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+      base_branch:
+        required: false
+        type: string
+        default: qcom-next-staging
+
+jobs:
+  checker:
+    runs-on:
+      group: GHA-Kernel-SelfHosted-RG
+      labels: [self-hosted, kernel-prd-u2404-x64-large-od-ephem]
+
+    steps:
+      - name: Clone kmake-image
+        run: |
+          git clone https://github.com/qualcomm-linux/kmake-image.git
+
+      - name: Build docker image
+        run: |
+          cd kmake-image
+          docker build . -t kmake-image
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge Base Branch
+        run: |
+          git fetch origin ${{ inputs.base_branch }}
+          git merge origin/${{ inputs.base_branch }}
+
+      - name: Clone kernel-checkers
+        run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git
+
+      - name: Run kernel check
+        run: |
+          bash ../kernel-checkers/${{ inputs.check_name }}.sh --kernel-src ${{ inputs.kernel_src }} \
+          --base ${{ inputs.base_sha }} --head ${{ inputs.head_sha }}
