@@ -1,0 +1,41 @@
+name: Kernel Checkers
+on:
+  workflow_call:
+    inputs:
+      check_name:
+        required: true
+        type: string
+      kernel_src:
+        required: true
+        type: string
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+
+jobs:
+  checker:
+    runs-on:
+      group: GHA-Kernel-SelfHosted-RG
+      labels: [self-hosted, kernel-prd-u2404-x64-large-od-ephem]
+
+    steps:
+      - name: Pull docker image from ghcr
+        run: |
+          docker pull ghcr.io/qualcomm-linux/kmake-image:latest
+          docker tag ghcr.io/qualcomm-linux/kmake-image:latest kmake-image
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone kernel-checkers
+        run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git
+
+      - name: Run kernel check
+        run: |
+          bash ../kernel-checkers/${{ inputs.check_name }}.sh --kernel-src ${{ inputs.kernel_src }} \
+          --base ${{ inputs.base_sha }} --head ${{ inputs.head_sha }}
