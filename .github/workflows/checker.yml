@@ -32,7 +32,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clone kernel-checkers
+        run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git
+
       - name: Run Kernel Check
         run: |
-          bash ./${{ inputs.check_name }}.sh --kernel-src ${{ inputs.kernel_src }} \
+          bash ../kernel-checkers/${{ inputs.check_name }}.sh --kernel-src ${{ inputs.kernel_src }} \
           --base ${{ inputs.base_sha }} --head ${{ inputs.head_sha }}
