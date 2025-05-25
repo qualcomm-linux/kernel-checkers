@@ -18,6 +18,12 @@ on:
         required: false
         type: string
         default: qcom-next-staging
+      pr_url:
+        type: string
+        required: false
+      pr_number:
+        type: string
+        required: false
 
 jobs:
   checker:
@@ -36,14 +42,11 @@ jobs:
           docker build . -t kmake-image
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: ./.github/actions/sync
         with:
-          fetch-depth: 0
-
-      - name: Merge Base Branch
-        run: |
-          git fetch origin ${{ inputs.base_branch }}
-          git merge origin/${{ inputs.base_branch }}
+          base_branch: ${{ inputs.base_branch }}
+          pr_url: ${{ inputs.pr_url }}
+          pr_number: ${{ inputs.pr_number }}
 
       - name: Clone kernel-checkers
         run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git

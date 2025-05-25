@@ -1,0 +1,63 @@
+name: Sync workspace
+
+inputs:
+  base_branch:
+    description: Base branch
+    required: true
+    default: qcom-next-staging
+  pr_url:
+    description: PR url
+    required: false
+  pr_number:
+    description: PR number
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout PR branch
+      if: ${{ inputs.base_branch }} == 'qcom-next-staging'
+      uses: actions/checkout@v4
+      shell: bash
+      with:
+        fetch-depth: 0
+
+    - name: Configure git
+      shell: bash
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+
+    - name: Sync with latest changes
+      if: ${{ inputs.base_branch }} == 'qcom-next-staging'
+      shell: bash
+      run: |
+        echo "Syncing with latest changes..."
+        git fetch origin ${{ inputs.base_branch }}
+        git merge origin/${{ inputs.base_branch }}
+
+    - name: Clone repositories
+      if: ${{ inputs.base_branch }} != 'qcom-next-staging'
+      shell: bash
+      run: |
+        git clone https://github.com/qualcomm-linux/kernel.git
+        git clone https://github.com/qualcomm-linux/automerge.git
+
+    - name: Create merge configuration
+      if: ${{ inputs.base_branch }} != 'qcom-next-staging'
+      shell: bash
+      run: |
+        TOPIC_BRANCH=${{ inputs.base_branch }}
+        cat <<EOF > merge.conf
+        baseline git@github.com:qualcomm-linux/kernel.git qcom-next
+        topic git@github.com:qualcomm-linux/kernel-topics.git $TOPIC_BRANCH
+        pr ${{ inputs.pr_url }} pull/${{ inputs.pr_number }}/head
+        EOF
+        echo "File 'merge.conf' created successfully."
+
+    - name: Run auto merge
+      if: ${{ inputs.base_branch }} != 'qcom-next-staging'
+      shell: bash
+      run: |
+        cd kernel
+        ../automerge/ci-merge -f ../merge.conf -t head -n
