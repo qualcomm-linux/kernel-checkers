@@ -18,6 +18,9 @@ on:
         required: false
         type: string
         default: qcom-next-staging
+      pr_number:
+        type: string
+        required: false
 
 jobs:
   checker:
@@ -30,20 +33,24 @@ jobs:
         run: |
           git clone https://github.com/qualcomm-linux/kmake-image.git
 
-      - name: Build docker image
-        run: |
-          cd kmake-image
-          docker build . -t kmake-image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: false
+          load: true
+          tags: kmake-image:latest
+          context: kmake-image
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: qualcomm-linux/kernel-checkers/.github/actions/sync@main
         with:
-          fetch-depth: 0
-
-      - name: Merge Base Branch
-        run: |
-          git fetch origin ${{ inputs.base_branch }}
-          git merge origin/${{ inputs.base_branch }}
+          base_branch: ${{ inputs.base_branch }}
+          pr_number: ${{ inputs.pr_number }}
 
       - name: Clone kernel-checkers
         run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git
