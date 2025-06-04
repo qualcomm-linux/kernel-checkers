@@ -62,7 +62,7 @@ fi
 git checkout $base_sha > /dev/null 2>&1
 kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
 kmake_image_make -s -j$(nproc) O="$temp_out" dtbs
-git switch - > /dev/null 2>&1
+git checkout $head_sha > /dev/null 2>&1
 
 # Checkout to head SHA and run make dtbs to
 # get the list of devicetree files impacted
@@ -71,7 +71,7 @@ git checkout $base_sha > /dev/null 2>&1
 dtb_files=$(kmake_image_make -j$(nproc) O=temp-out dtbs | grep -oP 'arch/arm64/boot/dts/.*?\.dtb')
 
 # Switch back to original branch
-git switch - > /dev/null 2>&1
+git checkout $head_sha > /dev/null 2>&1
 
 # rerun defconfig since we switched branch
 kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
