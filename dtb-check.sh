@@ -73,6 +73,9 @@ dtb_files=$(kmake_image_make -j$(nproc) O=temp-out dtbs | grep -oP 'arch/arm64/b
 # Switch back to original branch
 git switch - > /dev/null 2>&1
 
+# rerun defconfig since we switched branch
+kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
+
 # Validate each DTB file
 for devicetree in $dtb_files; do
     echo "Validating $devicetree"
