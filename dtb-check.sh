@@ -82,9 +82,10 @@ for devicetree in $dtb_files; do
     kmake_image_make -j"$(nproc)" O="$temp_out" CHECK_DTBS=y "$(echo "$devicetree" | sed 's|^arch/arm64/boot/dts/||')" |& tee "$log_file"
     if grep -q "$devicetree" $log_file; then
         log_summary+="dtbs_check passed for $devicetree...\n"
-        exit_status=1
+        exit_status=0
     else
-        log_summary+="dtbs_check passed for $devicetree...\n"
+        log_summary+="dtbs_check failed for $devicetree...\n"
+        exit_status=1
     fi
     echo ""
 done
