@@ -38,8 +38,17 @@ echo "Changed directory to $kernel_src"
 exit_status=0
 log_file="checkpatch_errors.log"
 
+# Docker wrapper
+kmake_image_run() {
+    docker run -i --rm \
+        --user "$(id -u):$(id -g)" \
+        --workdir="$PWD" \
+        -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
+        kmake-image "$@"
+}
+
 # Run checkpatch.pl script and redirect output to log file
-$kernel_src/scripts/checkpatch.pl --strict --summary-file --ignore FILE_PATH_CHANGES --git $base_sha..$head_sha |& tee "$log_file"
+kmake_image_run $kernel_src/scripts/checkpatch.pl --strict --summary-file --ignore FILE_PATH_CHANGES --git $base_sha..$head_sha |& tee "$log_file"
 
 while IFS= read -r line; do
     errors=$(echo $line | awk '{print $1}')
