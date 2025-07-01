@@ -8,6 +8,10 @@ inputs:
   pr_number:
     description: PR number
     required: false
+  topic_repo:
+    description: Topic repository
+    required: false
+    default: qualcomm-linux/kernel-topics
 
 runs:
   using: "composite"
@@ -50,9 +54,10 @@ runs:
       shell: bash
       run: |
         TOPIC_BRANCH=${{ inputs.base_branch }}
+        TOPIC_REPO=${{ inputs.topic_repo }}
         cat <<EOF > merge.conf
         baseline https://github.com/qualcomm-linux/kernel.git qcom-next
-        topic https://github.com/qualcomm-linux/kernel-topics.git $TOPIC_BRANCH
+        topic https://github.com/$TOPIC_REPO.git $TOPIC_BRANCH
         EOF
         echo "File 'merge.conf' created successfully."
 
@@ -68,7 +73,7 @@ runs:
       shell: bash
       run: |
         cd kernel
-        git fetch https://github.com/qualcomm-linux/kernel-topics.git pull/${{inputs.pr_number}}/head:pr-${{inputs.pr_number}}
+        git fetch https://github.com/${{inputs.topic_repo}}.git pull/${{inputs.pr_number}}/head:pr-${{inputs.pr_number}}
         git merge pr-${{inputs.pr_number}} --no-commit
         git commit -m "Merged PR ${{inputs.pr_number}}"
         
