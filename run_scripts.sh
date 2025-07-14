@@ -16,6 +16,7 @@ scripts=(
   "sparse-check.sh"
   "dt-binding-check.sh"
   "dtb-check.sh"
+  "check-patch-compliance.sh"
 )
 
 # Initialize variables
