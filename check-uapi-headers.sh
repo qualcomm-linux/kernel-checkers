@@ -8,33 +8,16 @@
 
 set -euo pipefail
 
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --kernel-src) kernel_src=$(realpath "$2"); shift ;;
-        --base) base_sha="$2"; shift ;;
-        --head) head_sha="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
 
-# Validate arguments
-if [[ -z "$base_sha" || -z "$head_sha" || -z "$kernel_src" ]]; then
-    echo "Usage: ./run_scripts.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>"
-    echo "Please pass the required arguments. Exiting..."
-    exit 1
-fi
+# Load shared utilities
+source "$(dirname "$0")/script-utils.sh"
 
-# Check if kernel source directory exists
-if [ ! -d "$kernel_src" ]; then
-    echo "Error: $kernel_src directory does not exist."
-    exit 1
-fi
+# Parse and validate input arguments
+parse_args "$@"
+validate_args
 
-# Change to kernel source directory
-pushd "$kernel_src" > /dev/null || exit 1
-echo "Changed directory to $kernel_src"
+# Enter kernel source directory
+enter_kernel_dir
 
 # Function to check if a file contains sysfs implementation
 file_has_sysfs() {
@@ -104,27 +87,18 @@ file_module_params_unmodified() {
     fi
 }
 
-# Initialize return status and log file
+# Initialize variables
 exit_status=0
 log_file="uapi_errors.log"
 
-# Docker wrapper
-kmake_image_run() {
-    docker run -i --rm \
-        --user "$(id -u):$(id -g)" \
-        --workdir="$PWD" \
-        -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
-        kmake-image "$@"
-}
-
 # Check if there are any .c or .h files that were added or modified
 if [ $(git diff-tree -r --name-only -M100% --diff-filter=AM $base_sha..$head_sha | grep -E '\.(c|h)$' | wc -l) -eq 0 ]; then
-    echo "Skipping uapi check as nothing changed"
-    popd
+    echo "Skipping uapi check as nothing changed..."
+    leave_kernel_dir
     exit 0
 fi
 
-kmake_image_run "${kernel_src}/scripts/check-uapi.sh" -b "$head_sha" -p "$base_sha" -l "$log_file" && uapi_ret="$?" || uapi_ret="$?"
+run_in_kmake_image "${kernel_src}/scripts/check-uapi.sh" -b "$head_sha" -p "$base_sha" -l "$log_file" && uapi_ret="$?" || uapi_ret="$?"
 
 if [ "$uapi_ret" -ne 0 ]; then
     cat "$log_file"
@@ -155,7 +129,6 @@ fi
 
 # Cleanup
 rm -f "$log_file"
-echo "Leaving $kernel_src"
-popd
+leave_kernel_dir
 
 exit $exit_status

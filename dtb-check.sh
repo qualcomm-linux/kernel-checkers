@@ -5,47 +5,21 @@
 
 # Usage:
 # ./dtb-check.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
+
 set -x
 set -euo pipefail
 
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --kernel-src) kernel_src=$(realpath "$2"); shift ;;
-        --base) base_sha="$2"; shift ;;
-        --head) head_sha="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
+# Load shared utilities
+source "$(dirname "$0")/script-utils.sh"
 
-# Validate arguments
-if [[ -z "$base_sha" || -z "$head_sha" || -z "$kernel_src" ]]; then
-    echo "Usage: $0 --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>"
-    echo "Please pass the required arguments. Exiting..."
-    exit 1
-fi
+# Parse and validate input arguments
+parse_args "$@"
+validate_args
 
-# Check if kernel source directory exists
-if [ ! -d "$kernel_src" ]; then
-    echo "Error: $kernel_src directory does not exist."
-    exit 1
-fi
+# Enter kernel source directory
+enter_kernel_dir
 
-# Change to kernel source directory
-pushd "$kernel_src" > /dev/null || exit 1
-echo "Changed directory to $kernel_src"
-
-# Docker wrapper for make
-kmake_image_make() {
-    docker run -i --rm \
-        --user "$(id -u):$(id -g)" \
-        --workdir="$PWD" \
-        -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
-        kmake-image make "$@"
-}
-
-# Initialize
+# Initialize variables
 exit_status=0
 log_summary=()
 dt_dir="arch/arm64/boot/dts"
@@ -55,31 +29,32 @@ temp_out="temp-out"
 # Check for devicetree changes
 if ! git diff --name-only "$base_sha" "$head_sha" -- "$dt_dir" | grep -q .; then
     echo "No changes in Devicetree"
+    leave_kernel_dir
     exit 0
 fi
 
 # Build DTBs at base SHA
 git checkout $base_sha > /dev/null 2>&1
-kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
-kmake_image_make -s -j$(nproc) O="$temp_out" dtbs
+run_in_kmake_image make -s -j$(nproc) O="$temp_out" defconfig
+run_in_kmake_image make -s -j$(nproc) O="$temp_out" dtbs
 git checkout $head_sha > /dev/null 2>&1
 
 # Checkout to head SHA and run make dtbs to
 # get the list of devicetree files impacted
 # by the head_sha
 git checkout $base_sha > /dev/null 2>&1
-dtb_files=$(kmake_image_make -j$(nproc) O=temp-out dtbs | grep -oP 'arch/arm64/boot/dts/.*?\.dtb')
+dtb_files=$(run_in_kmake_image make -j$(nproc) O=temp-out dtbs | grep -oP 'arch/arm64/boot/dts/.*?\.dtb')
 
 # Switch back to original branch
 git checkout $head_sha > /dev/null 2>&1
 
 # rerun defconfig since we switched branch
-kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
+run_in_kmake_image make -s -j$(nproc) O="$temp_out" defconfig
 
 # Validate each DTB file
 for devicetree in $dtb_files; do
     echo "Validating $devicetree"
-    kmake_image_make -j"$(nproc)" O="$temp_out" CHECK_DTBS=y "$(echo "$devicetree" | sed 's|^arch/arm64/boot/dts/||')" |& tee "$log_file"
+    run_in_kmake_image make -j"$(nproc)" O="$temp_out" CHECK_DTBS=y "$(echo "$devicetree" | sed 's|^arch/arm64/boot/dts/||')" |& tee "$log_file"
     if grep -q "$devicetree" $log_file; then
         log_summary+="dtbs_check passed for $devicetree...\n"
         exit_status=0
@@ -93,8 +68,7 @@ done
 # Cleanup
 rm -f $log_file
 rm -rf "$temp_out"
-echo "Leaving $kernel_src"
-popd
+leave_kernel_dir
 
 # Print summary
 echo ""

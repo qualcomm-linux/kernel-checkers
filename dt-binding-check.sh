@@ -8,44 +8,17 @@
 
 set -euo pipefail
 
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --kernel-src) kernel_src=$(realpath "$2"); shift ;;
-        --base) base_sha="$2"; shift ;;
-        --head) head_sha="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
+# Load shared utilities
+source "$(dirname "$0")/script-utils.sh"
 
-# Validate arguments
-if [[ -z "$base_sha" || -z "$head_sha" || -z "$kernel_src" ]]; then
-    echo "Usage: ./run_scripts.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>"
-    echo "Please pass the required arguments. Exiting..."
-    exit 1
-fi
+# Parse and validate input arguments
+parse_args "$@"
+validate_args
 
-# Check if kernel source directory exists
-if [ ! -d "$kernel_src" ]; then
-    echo "Error: $kernel_src directory does not exist."
-    exit 1
-fi
+# Enter kernel source directory
+enter_kernel_dir
 
-# Change to kernel source directory
-pushd "$kernel_src" > /dev/null || exit 1
-echo "Changed directory to $kernel_src"
-
-# Docker wrapper for make
-kmake_image_make() {
-    docker run -i --rm \
-        --user "$(id -u):$(id -g)" \
-        --workdir="$PWD" \
-        -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
-        kmake-image make "$@"
-}
-
-# Initialize
+# Initialize variables
 exit_status=0
 log_summary=()
 bindings_dir="Documentation/devicetree/bindings"
@@ -58,7 +31,7 @@ changed_files=$(git diff --name-only $base_sha $head_sha -- "$bindings_dir")
 # Check if there are any changes
 if [ -z "$changed_files" ]; then
     echo "No changes in $bindings_dir"
-    popd
+    leave_kernel_dir
     exit 0
 fi
 
@@ -67,7 +40,7 @@ validate_binding() {
     local binding=$1
     local check_command=$2
 
-    kmake_image_make -j$(nproc) O="$temp_out" "$check_command" DT_SCHEMA_FILES="$binding" |& tee $log_file
+    run_in_kmake_image make -j$(nproc) O="$temp_out" "$check_command" DT_SCHEMA_FILES="$binding" |& tee $log_file
     if grep -q "$binding" "$log_file"; then
         rm -f "$log_file"
         return 1
@@ -76,7 +49,7 @@ validate_binding() {
     return 0
 }
 # Build defconfig
-kmake_image_make -s -j$(nproc) O="$temp_out" defconfig
+run_in_kmake_image make -s -j$(nproc) O="$temp_out" defconfig
 
 # Process each changed file
 for binding in $changed_files; do
@@ -107,8 +80,7 @@ done
 
 # Cleanup
 rm -rf "$temp_out"
-echo "Leaving $kernel_src"
-popd
+leave_kernel_dir
 
 # Print summary
 echo ""

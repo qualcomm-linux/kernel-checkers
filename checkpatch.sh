@@ -6,49 +6,22 @@
 # Usage:
 # ./checkpatch.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
 
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --kernel-src) kernel_src=$(realpath "$2"); shift ;;
-        --base) base_sha="$2"; shift ;;
-        --head) head_sha="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
+# Load shared utilities
+source "$(dirname "$0")/script-utils.sh"
 
-# Validate arguments
-if [[ -z "$base_sha" || -z "$head_sha" || -z "$kernel_src" ]]; then
-    echo "Usage: $0 --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>"
-    echo "Please pass the required arguments. Exiting..."
-    exit 1
-fi
+# Parse and validate input arguments
+parse_args "$@"
+validate_args
 
-# Check if kernel source directory exists
-if [ ! -d "$kernel_src" ]; then
-    echo "Error: $kernel_src directory does not exist."
-    exit 1
-fi
+# Enter kernel source directory
+enter_kernel_dir
 
-# Change to kernel source directory
-pushd "$kernel_src" > /dev/null || exit 1
-echo "Changed directory to $kernel_src"
-
-# Initialize return status and log file
+# Initialize variables
 exit_status=0
 log_file="checkpatch_errors.log"
 
-# Docker wrapper
-kmake_image_run() {
-    docker run -i --rm \
-        --user "$(id -u):$(id -g)" \
-        --workdir="$PWD" \
-        -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
-        kmake-image "$@"
-}
-
 # Run checkpatch.pl script and redirect output to log file
-kmake_image_run $kernel_src/scripts/checkpatch.pl --strict --summary-file --ignore FILE_PATH_CHANGES --git $base_sha..$head_sha |& tee "$log_file"
+run_in_kmake_image $kernel_src/scripts/checkpatch.pl --strict --summary-file --ignore FILE_PATH_CHANGES --git $base_sha..$head_sha |& tee "$log_file"
 
 while IFS= read -r line; do
     errors=$(echo $line | awk '{print $1}')
@@ -73,7 +46,6 @@ fi
 
 # Cleanup
 rm -f "$log_file"
-echo "Leaving $kernel_src"
-popd
+leave_kernel_dir
 
 exit $exit_status
