@@ -58,13 +58,12 @@ for devicetree in $dtb_files; do
     error_nodes=$(grep -oP '[a-zA-Z0-9_-]+@[0-9a-fA-F]+' "$log_file" || true | sort -u | uniq)
 
     # Compare modified nodes with error nodes
-    common_nodes=$(comm -12 <(echo "$modified_nodes") <(echo "$error_nodes"))
+    common_nodes=$(comm -12 <(printf "%s\n" "$modified_nodes" | sort ) <(printf "%s\n" "$error_nodes" | sort ))
     if [[ -n "$common_nodes" ]]; then
         log_summary+="dtbs_check failed for $devicetree...\n"
         exit_status=1
     else
         log_summary+="dtbs_check passed for $devicetree...\n"
-        exit_status=0
     fi
     echo ""
 done
