@@ -56,6 +56,20 @@ for commit in $commits; do
     if ! diff out/from_git_commit out/from_mbox > /dev/null; then
       echo "Change is different from the one mentioned in Link"
     fi
+
+    # Extract author from mbox downloaded
+    mbox_author=$(grep -m 1 '^From:' out/*.mbx | sed 's/^From:[[:space:]]*//')
+
+    # Extract the author from local commit
+    git_author=$(git show -s --format='%an <%ae>' $commit)
+
+    # Compare authors
+    if [ ! "$mbox_author" = "$git_author" ]; then
+      echo "Author mismatch:"
+      echo "  Original author: $mbox_author"
+      echo "  Commit author : $git_author"
+      exit_status=1
+    fi
   fi
 
   # Check if summary starts with one of the required prefixes
