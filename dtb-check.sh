@@ -47,7 +47,7 @@ dtb_files=$(run_in_kmake_image make -j$(nproc) O=temp-out dtbs | grep -oP 'arch/
 
 # Get the nodes modified by PR
 modified_nodes=$(git diff "$base_sha".."$head_sha" -- "$dt_dir" | \
-                   grep -oE '[a-zA-Z0-9_-]+@[0-9a-fA-F]+' | sort -u | uniq)
+                   grep -oE '[a-zA-Z0-9_-]+@[0-9a-fA-F]+' || true | sort -u | uniq)
 
 # Validate each DTB file
 for devicetree in $dtb_files; do
@@ -55,7 +55,7 @@ for devicetree in $dtb_files; do
     run_in_kmake_image make -j"$(nproc)" O="$temp_out" CHECK_DTBS=y "$(echo "$devicetree" | sed 's|^arch/arm64/boot/dts/||')" |& tee "$log_file"
 
     # Extract error node names from the log file
-    error_nodes=$(grep -oP '[a-zA-Z0-9_-]+@[0-9a-fA-F]+' "$log_file" | sort -u | uniq)
+    error_nodes=$(grep -oP '[a-zA-Z0-9_-]+@[0-9a-fA-F]+' "$log_file" || true | sort -u | uniq)
 
     # Compare modified nodes with error nodes
     common_nodes=$(comm -12 <(echo "$modified_nodes") <(echo "$error_nodes"))
