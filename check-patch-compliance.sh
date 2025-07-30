@@ -35,6 +35,29 @@ for commit in $commits; do
     exit_status=1
   fi
 
+  #Extract the Link URL from the commit message
+  link=$(echo "$commit_message" | grep '^Link:' | sed 's/Link:[[:space:]]*//I')
+
+  # Fetch patch using b4
+  b4 am --single-message -C -l -3 $link -o out > /dev/null 2>&1
+
+  # Check if patch was fetched successfully
+  if [ ! -d out ]; then
+    echo "Something seems wrong with the provided link. Please verify it"
+    echo "Try below command to run locally-"
+    echo "b4 am --single-message -C -l -3 $link"
+    exit_status=1
+  else
+    # Extract code changes from both sources
+    grep -E '^[+-][^+-]' out/*.mbx > out/from_mbox
+    git format-patch -1 $commit --stdout | grep -E '^[+-][^+-]' > out/from_git_commit
+
+    # Compare the changes
+    if ! diff out/from_git_commit out/from_mbox > /dev/null; then
+      echo "Change is different from the one mentioned in Link"
+    fi
+  fi
+
   # Check if summary starts with one of the required prefixes
   if ! echo "$commit_summary" | grep -qE '^(FROMLIST|FROMGIT|UPSTREAM|BACKPORT)'; then
     echo "Commit summary does not start with a required prefix"
@@ -42,6 +65,7 @@ for commit in $commits; do
   fi
 
   echo ""
+  rm -rf out
 done
 
 if [ "$exit_status" -eq 0 ]; then
