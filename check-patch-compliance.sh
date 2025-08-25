@@ -20,7 +20,7 @@ enter_kernel_dir
 exit_status=0
 
 # Get the list of commits between the two SHAs
-commits=$(git rev-list --reverse ${base_sha}..${head_sha})
+commits=$(git rev-list --no-merges --reverse ${base_sha}..${head_sha})
 
 # Iterate over each commit
 for commit in $commits; do
