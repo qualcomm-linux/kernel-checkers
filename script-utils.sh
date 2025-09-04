@@ -49,3 +49,19 @@ run_in_kmake_image() {
     -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
     kmake-image "$cmd" "$@"
 }
+
+run_in_kmake_image_with_passwd() {
+  local cmd="$1"
+  shift
+
+  rm -rf /tmp/passwd.b4
+  echo "user:x:$(id -u):$(id -g):User:$PWD:/bin/bash" > /tmp/passwd.b4
+  docker run -i --rm \
+    --user "$(id -u):$(id -g)" \
+    --workdir="$PWD" \
+    -v "$(dirname "$PWD")":"$(dirname "$PWD")" \
+    -v /tmp/passwd.b4:/etc/passwd:ro \
+    kmake-image "$cmd" "$@"
+
+  rm -rf /tmp/passwd.b4
+}
