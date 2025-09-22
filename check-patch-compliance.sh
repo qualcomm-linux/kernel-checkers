@@ -59,7 +59,7 @@ for commit in $commits; do
       fi
 
       # Extract author from mbox downloaded
-      mbox_author=$(grep -m 1 '^From:' out/*.mbx | sed 's/^From:[[:space:]]*//')
+      mbox_author=$(grep -m 1 '^From:' out/*.mbx | sed 's/^From:[[:space:]]*//' | sed 's/"//g')
 
       # Extract the author from local commit
       git_author=$(git show -s --format='%an <%ae>' $commit)
