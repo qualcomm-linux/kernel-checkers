@@ -7,7 +7,6 @@
 # ./dtb-check.sh --kernel-src <KERNEL_SRC_PATH> --base <BASE_SHA> --head <HEAD_SHA>
 
 set -x
-set -euo pipefail
 
 # Load shared utilities
 source "$(dirname "$0")/script-utils.sh"
