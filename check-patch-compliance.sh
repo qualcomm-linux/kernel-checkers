@@ -29,6 +29,13 @@ for commit in $commits; do
 
   echo "Checking commit: $commit_summary"
 
+  # Check if summary starts with one of the required prefixes
+  if ! echo "$commit_summary" | grep -qE '^(FROMLIST|FROMGIT|UPSTREAM|BACKPORT)'; then
+    echo "Commit summary does not start with a required prefix"
+    exit_status=1
+    continue
+  fi
+
   # Check for 'Link:' in the commit message body
   if ! echo "$commit_message" | grep -q '^Link:'; then
     echo "No 'Link' found in commit message"
@@ -74,12 +81,6 @@ for commit in $commits; do
     fi
 
     rm -rf out
-  fi
-
-  # Check if summary starts with one of the required prefixes
-  if ! echo "$commit_summary" | grep -qE '^(FROMLIST|FROMGIT|UPSTREAM|BACKPORT)'; then
-    echo "Commit summary does not start with a required prefix"
-    exit_status=1
   fi
 
   echo ""
