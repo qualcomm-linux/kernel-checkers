@@ -57,7 +57,7 @@ for commit in $commits; do
     else
       # Extract code changes from both sources
       awk '/^diff --git /, /^--$/ { print }' out/*.mbx | grep -E '^[+-][^+-]' > out/from_mbox
-      git format-patch -1 $commit --stdout | grep -E '^[+-][^+-]' > out/from_git_commit
+      git format-patch -1 $commit --stdout | awk '/^diff --git /, /^--$/ { print }' | grep -E '^[+-][^+-]' > out/from_git_commit
 
       # Compare the changes
       if ! diff out/from_git_commit out/from_mbox > /dev/null; then
