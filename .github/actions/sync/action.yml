@@ -23,7 +23,7 @@ runs:
         echo ${{ inputs.pr_number }}
 
     - name: Checkout PR branch
-      if: inputs.base_branch == 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel'
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -36,7 +36,7 @@ runs:
         git config --global user.email "github-actions@github.com"
 
     - name: Sync with latest changes
-      if: inputs.base_branch == 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel'
       shell: bash
       run: |
         echo "Syncing with latest changes..."
@@ -44,14 +44,14 @@ runs:
         git merge origin/${{ inputs.base_branch }}
 
     - name: Clone repositories
-      if: inputs.base_branch != 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
       shell: bash
       run: |
         git clone https://github.com/qualcomm-linux/kernel.git
         git clone https://github.com/qualcomm-linux/automerge.git
 
     - name: Create merge configuration
-      if: inputs.base_branch != 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
       shell: bash
       run: |
         TOPIC_BRANCH=${{ inputs.base_branch }}
@@ -63,14 +63,14 @@ runs:
         echo "File 'merge.conf' created successfully."
 
     - name: Run auto merge
-      if: inputs.base_branch != 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
       shell: bash
       run: |
         cd kernel
         ../automerge/ci-merge -f ../merge.conf -t head -n
 
     - name: Fetch PR
-      if: inputs.base_branch != 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
       shell: bash
       run: |
         cd kernel
@@ -79,7 +79,7 @@ runs:
         git commit -m "Merged PR ${{inputs.pr_number}}"
     
     - name: Fetch PR
-      if: inputs.base_branch == 'qcom-next-staging'
+      if: inputs.topic_repo == 'qualcomm-linux/kernel'
       shell: bash
       run: |
         git checkout ${{ inputs.base_branch }}
