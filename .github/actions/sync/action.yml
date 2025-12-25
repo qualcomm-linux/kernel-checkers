@@ -36,6 +36,7 @@ runs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
 
+    ###Sync steps for kernel repository###
     - name: Sync with latest changes
       if: inputs.topic_repo == 'qualcomm-linux/kernel'
       shell: bash
@@ -44,41 +45,6 @@ runs:
         git fetch origin ${{ inputs.base_branch }}
         git merge origin/${{ inputs.base_branch }}
 
-    - name: Clone repositories
-      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
-      shell: bash
-      run: |
-        git clone https://github.com/qualcomm-linux/kernel.git
-        git clone https://github.com/qualcomm-linux/automerge.git
-
-    - name: Create merge configuration
-      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
-      shell: bash
-      run: |
-        TOPIC_BRANCH=${{ inputs.base_branch }}
-        TOPIC_REPO=${{ inputs.topic_repo }}
-        cat <<EOF > merge.conf
-        baseline https://github.com/qualcomm-linux/kernel.git qcom-next
-        topic https://github.com/$TOPIC_REPO.git $TOPIC_BRANCH
-        EOF
-        echo "File 'merge.conf' created successfully."
-
-    - name: Run auto merge
-      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
-      shell: bash
-      run: |
-        cd kernel
-        ../automerge/ci-merge -f ../merge.conf -t head -n
-
-    - name: Fetch PR
-      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
-      shell: bash
-      run: |
-        cd kernel
-        git fetch https://github.com/${{inputs.topic_repo}}.git pull/${{inputs.pr_number}}/head:pr-${{inputs.pr_number}}
-        git merge pr-${{inputs.pr_number}} --no-commit
-        git commit -m "Merged PR ${{inputs.pr_number}}"
-    
     - name: Fetch PR
       if: inputs.topic_repo == 'qualcomm-linux/kernel'
       shell: bash
@@ -91,3 +57,29 @@ runs:
         else
           echo "Nothing to commit. PR may already be merged or fast-forwarded."
         fi
+
+    ###Sync steps for kernel-topics repository###
+    - name: Clone repositories
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
+      shell: bash
+      run: |
+        git clone https://github.com/qualcomm-linux/kernel.git
+        git clone https://github.com/qualcomm-linux/automerge.git
+        git clone https://github.com/qualcomm-linux/kernel-config.git
+
+    - name: Run automerge
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
+      shell: bash
+      run: |
+        sed -i 's/kernel.git/kernel-topics.git/g' kernel-config/qcom-next.conf
+        sed -i 's/qcom-next-staging/baseline/g' kernel-config/qcom-next.conf
+        cd kernel
+        ../automerge/ci-merge -f ../kernel-config/qcom-next.conf -t head -i qcom-next -c https://github.com/sgaud-quic/cache -n
+
+    - name: Fetch PR
+      if: inputs.topic_repo == 'qualcomm-linux/kernel-topics'
+      shell: bash
+      run: |
+        git fetch https://github.com/${{inputs.topic_repo}}.git pull/${{inputs.pr_number}}/head:pr-${{inputs.pr_number}}
+        git merge pr-${{inputs.pr_number}} --no-commit
+        git commit -m "Merged PR ${{inputs.pr_number}}"
