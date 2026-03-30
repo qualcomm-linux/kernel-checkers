@@ -54,4 +54,5 @@ jobs:
       - name: Run kernel check
         run: |
           bash ../kernel-checkers/${{ inputs.check_name }}.sh --kernel-src ${{ inputs.kernel_src }} \
-          --base ${{ inputs.base_sha }} --head ${{ inputs.head_sha }}
+          --base ${{ inputs.base_sha }} --head ${{ inputs.head_sha }} --base_branch ${{ inputs.base_branch }} \
+          --pr ${{ inputs.pr_number }} --topic_repo ${{ inputs.topic_repo }}
