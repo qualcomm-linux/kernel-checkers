@@ -7,6 +7,9 @@ parse_args() {
       --kernel-src) kernel_src=$(realpath "$2"); shift ;;
       --base) base_sha="$2"; shift ;;
       --head) head_sha="$2"; shift ;;
+      --base_branch) base_branch="$2"; shift ;;
+      --pr) pr="$2"; shift ;;
+      --topic_repo) topic_repo="$2"; shift ;;
       *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift

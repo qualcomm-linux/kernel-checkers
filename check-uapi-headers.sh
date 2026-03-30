@@ -11,6 +11,7 @@ set -euo pipefail
 
 # Load shared utilities
 source "$(dirname "$0")/script-utils.sh"
+source "$(dirname "$0")/aws_s3_upload.sh"
 
 # Parse and validate input arguments
 parse_args "$@"
@@ -103,6 +104,7 @@ run_in_kmake_image "${kernel_src}/scripts/check-uapi.sh" -b "$head_sha" -p "$bas
 if [ "$uapi_ret" -ne 0 ]; then
     cat "$log_file"
     exit_status=1
+    aws_s3_data_dump "$log_file" "$uapi_ret" "$topic_repo" "$base_sha" "$head_sha" "$pr" || true
 fi
 
 while read -r modified_file; do
