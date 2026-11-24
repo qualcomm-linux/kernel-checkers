@@ -15,6 +15,19 @@ on:
       topic_repo:
         type: string
         required: false
+      config_repo:
+        description: Repository holding qcom-next.yaml.
+        type: string
+        required: false
+        default: qualcomm-linux/kernel-config
+      config_ref:
+        description: >
+          Ref of config_repo to read qcom-next.yaml from. The caller should
+          pass the kernel-config branch it is running from, so the checker tree
+          is built from the same pins as that branch's pre-merge CI.
+        type: string
+        required: false
+        default: main
 
 jobs:
   checker:
@@ -35,16 +48,26 @@ jobs:
             ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ vars.TECH_TEAM_NAMESPACE }}/kmake-image:${{ vars.KMAKE_IMAGE_VERSION }} \
             kmake-image:latest
 
+      # uses: cannot take an expression, so this ref is hardcoded. Calling this
+      # workflow at a branch does NOT redirect it: bump this and the script
+      # clone below together whenever the workflow is run from a test branch.
       - name: Checkout code
         id: sync
-        uses: qualcomm-linux/kernel-checkers/.github/actions/sync@main
+        uses: qualcomm-linux/kernel-checkers/.github/actions/sync@test_ci_v2
         with:
           base_branch: ${{ inputs.base_branch }}
           pr_number: ${{ inputs.pr_number }}
           topic_repo: ${{ inputs.topic_repo }}
+          config_repo: ${{ inputs.config_repo }}
+          config_ref: ${{ inputs.config_ref }}
 
       - name: Clone kernel-checkers
-        run: cd .. && git clone https://github.com/qualcomm-linux/kernel-checkers.git
+        run: |
+          set -euo pipefail
+          cd ..
+          rm -rf kernel-checkers
+          git clone --branch test_ci_v2 \
+            https://github.com/qualcomm-linux/kernel-checkers.git
 
       - name: Run kernel check
         run: |
