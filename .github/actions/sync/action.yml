@@ -1,9 +1,13 @@
 name: Sync workspace
-description: Sync the workspace with the latest changes from the base branch and the PR
+description: >
+  Assemble the tree a checker runs on. For a kernel-topics PR this reproduces
+  the same integration tree as kernel-config pre-merge CI: the pinned baseline
+  and every topic at its promoted SHA from qcom-next.yaml, with the topic under
+  test overridden to its branch tip, then the PR merged on top.
 
 inputs:
   base_branch:
-    description: Base branch
+    description: Base branch. For a kernel-topics PR this is the topic branch.
     required: true
     default: qcom-next-staging
   pr_number:
@@ -13,26 +17,62 @@ inputs:
     description: Topic repository
     required: false
     default: qualcomm-linux/kernel-topics
+  config_repo:
+    description: Repository holding qcom-next.yaml.
+    required: false
+    default: qualcomm-linux/kernel-config
+  config_ref:
+    description: >
+      Ref of config_repo to read qcom-next.yaml from. Pin this to reproduce an
+      older run; the default tracks the branch CI builds from.
+    required: false
+    default: main
+  automerge_repo:
+    description: Repository holding the automerge tooling.
+    required: false
+    default: sgaud-quic/automerge
+  automerge_ref:
+    description: >
+      Branch of automerge_repo to use. The --yaml-config support lives on this
+      branch, so it must match what kernel-config uses.
+    required: false
+    default: sha_config_yaml
+  rerere_cache:
+    description: >
+      Shared rerere cache consumed read-only by automerge. Must match the cache
+      kernel-config uses, otherwise a conflict resolved for pre-merge CI is not
+      replayed here.
+    required: false
+    default: https://github.com/qualcomm-linux/kernel-rrcache
 
 outputs:
   base_sha:
-    description: Base sha of the PR
+    description: Tree before the PR is merged. Checkers diff from here.
     value: ${{ steps.get_sha.outputs.base_sha }}
   head_sha:
-    description: Head sha of the PR
+    description: Tree after the PR is merged.
     value: ${{ steps.get_sha.outputs.head_sha }}
   kernel_src:
     description: Path to the kernel source directory
     value: ${{ steps.get_sha.outputs.kernel_src }}
+  config_sha:
+    description: >
+      kernel-config commit whose qcom-next.yaml produced the tree. Empty for a
+      kernel PR, which does not use the config.
+    value: ${{ steps.get_sha.outputs.config_sha }}
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout PR branch
+    # Full history: automerge resets the tree to the baseline named in the
+    # config and merges topic SHAs into it, neither of which is reachable in a
+    # shallow clone.
+    - name: Checkout kernel
       uses: actions/checkout@v4
       with:
         repository: qualcomm-linux/kernel
         path: kernel
+        fetch-depth: 0
 
     - name: Configure git
       shell: bash
@@ -40,15 +80,142 @@ runs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
 
-    - name: Sync with latest changes
+    - name: Clone automerge
+      if: inputs.topic_repo != 'qualcomm-linux/kernel'
       shell: bash
-      id: get_sha
+      env:
+        AUTOMERGE_REPO: ${{ inputs.automerge_repo }}
+        AUTOMERGE_REF: ${{ inputs.automerge_ref }}
+      run: |
+        set -euo pipefail
+        rm -rf automerge
+        git clone --branch "$AUTOMERGE_REF" \
+          "https://github.com/${AUTOMERGE_REPO}.git" automerge
+
+    # qcom-next.yaml pins the baseline and every topic branch to an explicit,
+    # already-promoted SHA. Reading it here is what makes the checker tree the
+    # same tree pre-merge CI builds, instead of "qcom-next branch + one topic".
+    - name: Build qcom-next config for the topic PR
+      id: config
+      if: inputs.topic_repo != 'qualcomm-linux/kernel'
+      shell: bash
+      env:
+        CONFIG_REPO: ${{ inputs.config_repo }}
+        CONFIG_REF: ${{ inputs.config_ref }}
+        TOPIC_REPO: ${{ inputs.topic_repo }}
+        TOPIC_BRANCH: ${{ inputs.base_branch }}
       run: |
         set -euo pipefail
 
-        BASE="${{ inputs.base_branch }}"
-        PR="${{ inputs.pr_number }}"
-        TOPIC_REPO="${{ inputs.topic_repo }}"
+        rm -rf kernel-config
+        git clone --depth 1 --branch "$CONFIG_REF" \
+          "https://github.com/${CONFIG_REPO}.git" kernel-config
+        config_sha="$(git -C kernel-config rev-parse HEAD)"
+        echo "config_sha=$config_sha" >> "$GITHUB_OUTPUT"
+        echo "qcom-next.yaml from ${CONFIG_REPO}@${config_sha}"
+
+        override_sha="$(git ls-remote \
+          "https://github.com/${TOPIC_REPO}.git" \
+          "refs/heads/${TOPIC_BRANCH}" | awk '{print $1}')"
+        if [ -z "$override_sha" ]; then
+          echo "ERROR: topic branch '${TOPIC_BRANCH}' was not found in ${TOPIC_REPO}" >&2
+          exit 1
+        fi
+        echo "overriding ${TOPIC_BRANCH} to ${override_sha}"
+
+        # Only the topic under test moves to its branch tip; the PR head is
+        # merged on top afterwards. Every other topic stays at the promoted pin
+        # recorded in qcom-next.yaml. Overriding anything else would test
+        # unpromoted work and make the run unreproducible.
+        CONFIG_IN="kernel-config/qcom-next.yaml" \
+        CONFIG_OUT="qcom-next-pr.yaml" \
+        PRIMARY_TOPIC="$TOPIC_BRANCH" \
+        OVERRIDE_SHA="$override_sha" python3 <<'PY'
+        import os
+        import sys
+
+        config_in = os.environ["CONFIG_IN"]
+        config_out = os.environ["CONFIG_OUT"]
+        primary = os.environ["PRIMARY_TOPIC"]
+        override = os.environ["OVERRIDE_SHA"]
+
+        with open(config_in, encoding="utf-8") as handle:
+            lines = handle.readlines()
+
+        out = []
+        block = []
+        matched = False
+
+        def flush(topic_block):
+            """Emit one topic block, rewriting it if it is the topic under test."""
+            global matched
+            if not topic_block:
+                return
+            is_target = False
+            for line in topic_block:
+                stripped = line.strip()
+                for field in ("name:", "branch:"):
+                    if stripped.startswith(field):
+                        value = stripped.split(":", 1)[1].strip().strip('"')
+                        if value == primary:
+                            is_target = True
+                        break
+                if is_target:
+                    break
+            if not is_target:
+                out.extend(topic_block)
+                return
+            matched = True
+            for line in topic_block:
+                stripped = line.strip()
+                if stripped.startswith("sha:"):
+                    out.append(f"    sha: {override}\n")
+                elif stripped.startswith("tag:"):
+                    # The tip is not tagged, and automerge must not look for one.
+                    out.append("    tag: null\n")
+                else:
+                    out.append(line)
+
+        in_topics = False
+        for line in lines:
+            if line.startswith("topics:"):
+                in_topics = True
+                out.append(line)
+                continue
+            if in_topics and line.startswith("  - name:"):
+                flush(block)
+                block = [line]
+                continue
+            if in_topics and block:
+                block.append(line)
+            else:
+                out.append(line)
+        flush(block)
+
+        if not matched:
+            print(
+                f"ERROR: topic '{primary}' was not found in {config_in}. "
+                "A topic branch must be listed in qcom-next.yaml before its "
+                "PRs can be checked in integration context.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        with open(config_out, "w", encoding="utf-8") as handle:
+            handle.writelines(out)
+        PY
+
+    - name: Sync with latest changes
+      shell: bash
+      id: get_sha
+      env:
+        BASE: ${{ inputs.base_branch }}
+        PR: ${{ inputs.pr_number }}
+        TOPIC_REPO: ${{ inputs.topic_repo }}
+        RERERE_CACHE: ${{ inputs.rerere_cache }}
+        CONFIG_SHA: ${{ steps.config.outputs.config_sha }}
+      run: |
+        set -euo pipefail
 
         # helper to fetch & merge a PR robustly
         merge_pr() {
@@ -81,6 +248,8 @@ runs:
           return 0
         }
 
+        echo "config_sha=${CONFIG_SHA:-}" >> "$GITHUB_OUTPUT"
+
         # work inside checked-out kernel tree
         cd kernel
 
@@ -100,34 +269,24 @@ runs:
             echo "No PR number provided; skipping PR fetch/merge."
           fi
         else
-          # non-qcom-next-staging path: run automerge then merge PR
-          echo "Syncing qcom-next baseline..."
-          git fetch origin qcom-next --quiet
-          git checkout qcom-next
-          git reset --hard origin/qcom-next
-
-          cd ..
-          if [ ! -d "automerge" ]; then
-            git clone https://github.com/qualcomm-linux/automerge.git automerge || {
-              echo "automerge clone failed" >&2
-              exit 5
-            }
-          fi
-
-          TOPIC_BRANCH="$BASE"
-          printf '%s\n' \
-            "baseline https://github.com/qualcomm-linux/kernel.git qcom-next" \
-            "topic https://github.com/${TOPIC_REPO}.git ${TOPIC_BRANCH}" \
-            > merge.conf
-
-          echo "File '../merge.conf' created successfully."
-
-          echo "Running automerge..."
-          cd kernel
-          ../automerge/ci-merge -f ../merge.conf -t head -n || {
-            echo "automerge returned non-zero; check logs for conflicts" >&2
-            exit 1
-          }
+          # Topic branch PR: build the integration tree from qcom-next.yaml.
+          # automerge resets the tree to the baseline named in the config, so
+          # there is no branch to check out first.
+          #
+          # Neither --interactive nor --pass. -n is --interactive despite the
+          # spelling, and it sends a conflict to git mergetool, which cannot
+          # work without a tty, so the rerere cache passed with -c never got a
+          # chance to resolve anything. It also made --pass dead, since
+          # automerge only reads that flag on the non-interactive path. Without
+          # both, a conflict is first resolved from the cache and only aborts
+          # the run if it cannot be, naming the topic that failed.
+          echo "Running automerge with qcom-next.yaml..."
+          ../automerge/ci-merge \
+            --yaml-config ../qcom-next-pr.yaml \
+            -t head \
+            -i qcom-next \
+            -c "$RERERE_CACHE" \
+            | tee "$GITHUB_WORKSPACE/merge.log"
 
           # base sha = after automerge (all topics integrated), before the PR commits
           base_sha=$(git rev-parse --verify HEAD)
