@@ -28,6 +28,14 @@ on:
         type: string
         required: false
         default: main
+      rerere_cache:
+        description: >
+          Shared rerere cache automerge reads when building the tree. Must
+          match the cache kernel-config uses, otherwise a conflict resolved
+          for pre-merge CI is not replayed here.
+        type: string
+        required: false
+        default: https://github.com/qualcomm-linux/kernel-rrcache
 
 jobs:
   checker:
@@ -60,6 +68,10 @@ jobs:
           topic_repo: ${{ inputs.topic_repo }}
           config_repo: ${{ inputs.config_repo }}
           config_ref: ${{ inputs.config_ref }}
+          # Fall back explicitly: an input declared with a default is still
+          # the empty string when a caller passes one, and an empty -c would
+          # silently run automerge with no cache.
+          rerere_cache: ${{ inputs.rerere_cache || 'https://github.com/qualcomm-linux/kernel-rrcache' }}
 
       - name: Clone kernel-checkers
         run: |
